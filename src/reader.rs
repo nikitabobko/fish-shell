@@ -3113,6 +3113,28 @@ impl<'a> Reader<'a> {
                     self.input_data.function_set_status(success);
                 }
             }
+            rl::JumpToMatchingBracket => {
+                let (elt, _el) = self.active_edit_line();
+                let el = self.edit_line(elt);
+                let jump_from = el.at(el.position());
+                let direction = if jump_from == ')' || jump_from == '}' || jump_from == ']' {
+                    JumpDirection::Backward
+                } else {
+                    // If we stand on non-bracket character, we prefer to jump forward
+                    JumpDirection::Forward
+                };
+                let jump_to = match jump_from {
+                    '(' => vec![')'],
+                    ')' => vec!['('],
+                    '[' => vec![']'],
+                    ']' => vec!['['],
+                    '{' => vec!['}'],
+                    '}' => vec!['{'],
+                    _ => vec!['(', ')', '[', ']', '{', '}'],
+                };
+                let success = self.jump(direction, JumpPrecision::To, elt, jump_to);
+                self.input_data.function_set_status(success);
+            }
             rl::RepeatJump => {
                 let (elt, _el) = self.active_edit_line();
                 let mut success = false;
