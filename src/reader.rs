@@ -3113,11 +3113,30 @@ impl<'a> Reader<'a> {
                     self.input_data.function_set_status(success);
                 }
             }
-            rl::JumpToMatchingBracket => {
+            rl::JumpToMatchingBracket | rl::JumpTillMatchingBracket => {
                 let (elt, _el) = self.active_edit_line();
                 let el = self.edit_line(elt);
-                let jump_from = el.at(el.position());
-                let direction = if jump_from == ')' || jump_from == '}' || jump_from == ']' {
+                let l_brackets = ['(', '[', '{'];
+                let r_brackets = [')', ']', '}'];
+                let position = el.position();
+                let jump_from = match c {
+                    rl::JumpToMatchingBracket => el.at(position),
+                    rl::JumpTillMatchingBracket => {
+                        if l_brackets.contains(&el.at(position))
+                            || r_brackets.contains(&el.at(position))
+                        {
+                            el.at(position)
+                        } else if position > 0 && l_brackets.contains(&el.at(position - 1)) {
+                            el.at(position - 1)
+                        } else if position < el.len() && r_brackets.contains(&el.at(position + 1)) {
+                            el.at(position + 1)
+                        } else {
+                            el.at(position)
+                        }
+                    }
+                    _ => unreachable!(),
+                };
+                let direction = if r_brackets.contains(&jump_from) {
                     JumpDirection::Backward
                 } else {
                     // If we stand on non-bracket character, we prefer to jump forward
@@ -3130,9 +3149,15 @@ impl<'a> Reader<'a> {
                     ']' => vec!['['],
                     '{' => vec!['}'],
                     '}' => vec!['{'],
-                    _ => vec!['(', ')', '[', ']', '{', '}'],
+                    // forward jump from non-bracket character
+                    _ => r_brackets.to_vec(),
                 };
-                let success = self.jump(direction, JumpPrecision::To, elt, jump_to);
+                let precision = match c {
+                    rl::JumpToMatchingBracket => JumpPrecision::To,
+                    rl::JumpTillMatchingBracket => JumpPrecision::Till,
+                    _ => unreachable!(),
+                };
+                let success = self.jump(direction, precision, elt, jump_to);
                 self.input_data.function_set_status(success);
             }
             rl::RepeatJump => {
